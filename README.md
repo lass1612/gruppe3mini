@@ -12,47 +12,74 @@ Komplet backend til IP Sentinel-opgaven. Flask serverer webinterfacet, SQLite ge
 - `data/ip_sentinel.db` – oprettes automatisk første gang
 - `requirements.txt` – Python dependencies
 
-## Installation på Raspberry Pi / Linux
+## Opsætning og Eksekvering
 
-```bash
-cd ip_sentinel_project
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+Scapy bruger raw sockets til at udføre ARP-scanning. Dette kræver særlige rettigheder på både Windows og Linux.
+Vi har delt opsætningen op i to klare stier afhængig af dit operativsystem. Det anbefales at bruge et virtuelt Python-miljø.
 
-### Start i demo-mode først
+---
 
-```bash
-export IP_SENTINEL_SCAN_MODE=demo
-python3 app.py
-```
+### Vejledning: Windows
 
-Åbn derefter:
+1. **Opret og aktiver et virtuelt miljø:**
+   Start din terminal (PowerShell) som **Administrator**, gå til projektmappen, og kør:
+   ```powershell
+   py -m venv .venv
+   .\.venv\Scripts\activate
+   ```
 
-`http://<raspberry-pi-ip>:5000`
+2. **Installer dependencies:**
+   ```powershell
+   pip install -r requirements.txt
+   ```
 
-### Rigtig ARP-scan
+3. **Kør serveren:**
+   Husk, at terminalen *skal* køre som **Administrator** for at Scapy kan få adgang til raw sockets.
+   ```powershell
+   .\.venv\Scripts\python.exe app.py
+   ```
+   *Bemærk: Hvis Scapy vælger det forkerte interface, kan du angive det manuelt:*
+   ```powershell
+   $env:IP_SENTINEL_INTERFACE="Navn-paa-interface"
+   .\.venv\Scripts\python.exe app.py
+   ```
 
-Scapy bruger raw sockets. Til en hurtig undervisningsdemo kan programmet startes med de nødvendige rettigheder:
+4. **Åbn webinterfacet:**
+   Gå til `http://localhost:5000` i din browser.
 
-```bash
-sudo .venv/bin/python app.py
-```
+---
 
-I en produktionsløsning bør webserveren ikke køre som root; scanner-delen bør isoleres og få kun den nødvendige netværkskapabilitet.
+### Vejledning: Raspberry Pi / Linux
 
-Sæt evt. interface før start:
+1. **Opret og aktiver et virtuelt miljø:**
+   Gå til projektmappen, og kør:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
 
-```bash
-export IP_SENTINEL_INTERFACE=eth0
-export IP_SENTINEL_CIDR=192.168.2.0/24
-sudo -E .venv/bin/python app.py
-```
+2. **Installer dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-## Windows
+3. **Kør serveren med administratorrettigheder:**
+   Brug `sudo` til at køre Python-fortolkeren fra dit virtuelle miljø, da raw sockets kræver root.
+   ```bash
+   sudo .venv/bin/python app.py
+   ```
+   *Bemærk: Hvis Scapy vælger det forkerte interface, eller du vil sætte et standard CIDR:*
+   ```bash
+   export IP_SENTINEL_INTERFACE=eth0
+   export IP_SENTINEL_CIDR=192.168.2.0/24
+   sudo -E .venv/bin/python app.py
+   ```
+   For nem opstart kan du også bruge hjælpe-scriptet `start_real_pi.sh`.
 
-Installer Python, Npcap og dependencies. Start terminal/PowerShell som administrator. Hvis Scapy vælger forkert interface, sæt `IP_SENTINEL_INTERFACE` til det interface Scapy/Npcap bruger.
+4. **Åbn webinterfacet:**
+   Gå til `http://localhost:5000` i din browser.
+
+---
 
 ## Hvad sker der ved Scan netværk?
 
@@ -80,7 +107,7 @@ Installer Python, Npcap og dependencies. Start terminal/PowerShell som administr
 ```bash
 export IP_SENTINEL_USER=admin
 export IP_SENTINEL_PASSWORD='et-langt-password'
-python3 app.py
+.venv/bin/python app.py
 ```
 
 Browseren viser derefter sin standard login-dialog.
@@ -95,7 +122,7 @@ export IP_SENTINEL_SMTP_PORT=587
 export IP_SENTINEL_SMTP_USER=brugernavn
 export IP_SENTINEL_SMTP_PASSWORD=password
 export IP_SENTINEL_ALERT_TO=modtager@example.com
-python3 app.py
+.venv/bin/python app.py
 ```
 
 ## API
@@ -105,7 +132,6 @@ python3 app.py
 - `POST /api/reservations`
 - `DELETE /api/reservations/<ip>`
 - `POST /api/reservations/import`
-- `POST /api/demo-data`
 - `POST /api/scan`
 - `GET /api/scans`
 - `GET /api/scans/latest`

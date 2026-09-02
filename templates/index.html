@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html class="dark" lang="da">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IP Sentinel - Dashboard</title>
+
+  <!-- UI Dependencies -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface-bright": "#31394d",
+            "surface-container-highest": "#2d3449",
+            "surface-tint": "#adc6ff",
+            "tertiary-fixed-dim": "#ffb95f",
+            "on-tertiary-fixed-variant": "#653e00",
+            "inverse-primary": "#005ac2",
+            "background": "#0b1326",
+            "outline": "#8c909f",
+            "on-tertiary-container": "#3e2400",
+            "surface-variant": "#2d3449",
+            "on-tertiary-fixed": "#2a1700",
+            "tertiary-fixed": "#ffddb8",
+            "tertiary": "#ffb95f",
+            "surface": "#0b1326",
+            "secondary-container": "#00a572",
+            "outline-variant": "#424754",
+            "on-primary": "#002e6a",
+            "on-primary-container": "#00285d",
+            "on-secondary-fixed": "#002113",
+            "on-background": "#dae2fd",
+            "primary-fixed": "#d8e2ff",
+            "on-surface-variant": "#c2c6d6",
+            "surface-container": "#171f33",
+            "surface-container-high": "#222a3d",
+            "on-secondary": "#003824",
+            "primary-container": "#4d8eff",
+            "primary-fixed-dim": "#adc6ff",
+            "tertiary-container": "#ca8100",
+            "on-error-container": "#ffdad6",
+            "on-primary-fixed-variant": "#004395",
+            "error-container": "#93000a",
+            "error": "#ffb4ab",
+            "on-primary-fixed": "#001a42",
+            "secondary": "#4edea3",
+            "secondary-fixed-dim": "#4edea3",
+            "on-surface": "#dae2fd",
+            "surface-dim": "#0b1326",
+            "on-tertiary": "#472a00",
+            "on-secondary-fixed-variant": "#005236",
+            "surface-container-low": "#131b2e",
+            "surface-container-lowest": "#060e20",
+            "on-error": "#690005",
+            "inverse-surface": "#dae2fd",
+            "secondary-fixed": "#6ffbbe",
+            "inverse-on-surface": "#283044",
+            "on-secondary-container": "#00311f",
+            "primary": "#adc6ff"
+          },
+          fontFamily: {
+            sans: ["Inter", "ui-sans-serif", "system-ui"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { background-color: #0b1326; color: #dae2fd; }
+    .grid-overlay {
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* Radar styles */
+    .radar {
+      width: 220px; height: 220px; border: 1px solid rgba(173,198,255,0.2); border-radius: 50%;
+      position: relative; overflow: hidden; background: rgba(23,31,51,0.4);
+    }
+    .radar::before { content: ""; position: absolute; width: 1px; top: 0; bottom: 0; left: 50%; background: rgba(173,198,255,0.1); }
+    .radar::after { content: ""; position: absolute; height: 1px; left: 0; right: 0; top: 50%; background: rgba(173,198,255,0.1); }
+    .sweep {
+      position: absolute; left: 50%; top: 50%; width: 110px; height: 2px; transform-origin: left center;
+      background: linear-gradient(90deg, #4d8eff, transparent); display: none;
+    }
+    .scanning .sweep { display: block; animation: sweep 2.5s linear infinite; }
+    @keyframes sweep { to { transform: rotate(360deg); } }
+    .node {
+      position: absolute; width: 10px; height: 10px; border-radius: 50%;
+      box-shadow: 0 0 10px currentColor; z-index: 5; transition: all 0.3s ease;
+    }
+    .node-label {
+      position: absolute; font-family: 'JetBrains Mono'; font-size: 10px; white-space: nowrap;
+      color: #8c909f; transform: translate(-50%, 12px); pointer-events: none;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2d3449; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #424754; }
+
+    /* Toast styling */
+    .toast {
+      animation: toastIn 0.3s ease-out;
+    }
+    @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  </style>
+</head>
+<body class="font-sans antialiased overflow-hidden text-sm">
+
+  <!-- Sidebar -->
+  <nav class="bg-surface-container-lowest h-screen w-64 flex-col fixed left-0 top-0 border-r border-white/5 py-6 px-4 z-40 hidden md:flex">
+    <div class="flex items-center gap-3 mb-8 px-2">
+      <div class="w-10 h-10 rounded bg-primary-container flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings: 'FILL' 1">shield_lock</span>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold text-primary">IP Sentinel</h1>
+        <div class="flex items-center gap-1.5 mt-0.5">
+          <span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+          <span class="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant">System Online</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex-1 space-y-1">
+      <button class="nav-tab w-full flex items-center gap-3 px-3 py-2.5 rounded-lg group text-primary bg-surface-bright/10 border-r-2 border-primary active:scale-95 transition-all" data-page="dashboard">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span class="font-semibold">Overview</span>
+      </button>
+      <button class="nav-tab w-full flex items-center gap-3 px-3 py-2.5 rounded-lg group text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-all active:scale-95" data-page="database">
+        <span class="material-symbols-outlined">storage</span>
+        <span class="font-semibold">IP Database</span>
+      </button>
+      <button class="nav-tab w-full flex items-center gap-3 px-3 py-2.5 rounded-lg group text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-all active:scale-95" data-page="scanner">
+        <span class="material-symbols-outlined">radar</span>
+        <span class="font-semibold">Scanning</span>
+      </button>
+      <button class="nav-tab w-full flex items-center gap-3 px-3 py-2.5 rounded-lg group text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-all active:scale-95" data-page="logs">
+        <span class="material-symbols-outlined">notifications_active</span>
+        <span class="font-semibold flex-1 text-left">Logs & Alerts</span>
+        <span id="navAlertBadge" class="bg-error text-on-error rounded-full px-2 py-0.5 text-[10px] font-bold hidden">0</span>
+      </button>
+      <button class="nav-tab w-full flex items-center gap-3 px-3 py-2.5 rounded-lg group text-on-surface-variant hover:bg-surface-variant hover:text-on-surface transition-all active:scale-95" data-page="architecture">
+        <span class="material-symbols-outlined">account_tree</span>
+        <span class="font-semibold">Architecture</span>
+      </button>
+    </div>
+
+    <div class="mt-auto pt-4 border-t border-white/5 space-y-4">
+      <button id="quickScanBtn" class="w-full bg-primary-container hover:bg-primary text-on-primary-container font-bold py-2.5 rounded-lg transition-all active:scale-95 flex justify-center items-center gap-2">
+        <span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1">play_arrow</span>
+        Run Quick Scan
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Header -->
+  <header class="bg-surface-dim border-b border-white/5 flex justify-between items-center w-full h-16 px-6 md:hidden sticky top-0 z-50">
+    <div class="flex items-center gap-2">
+      <button id="mobileMenuBtn" class="material-symbols-outlined text-primary">menu</button>
+      <span class="text-xl font-bold text-primary">IP Sentinel</span>
+    </div>
+    <div class="flex gap-4">
+      <span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">notifications</span>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="ml-0 md:ml-64 h-screen flex flex-col bg-background overflow-hidden">
+    <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+
+      <!-- Dashboard Page -->
+      <section id="dashboard" class="page active space-y-6">
+        <!-- KPI Metrics -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="bg-surface-container border border-white/5 rounded-xl p-5 flex flex-col gap-2">
+            <div class="flex justify-between items-start">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Reserved IP Addresses</span>
+              <span class="material-symbols-outlined text-on-surface-variant text-xl">vpn_key</span>
+            </div>
+            <div id="kpiReserved" class="text-3xl font-bold text-on-surface">0</div>
+          </div>
+          <div class="bg-surface-container border border-white/5 rounded-xl p-5 flex flex-col gap-2">
+            <div class="flex justify-between items-start">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Active Devices</span>
+              <span class="material-symbols-outlined text-on-surface-variant text-xl">router</span>
+            </div>
+            <div id="kpiActive" class="text-3xl font-bold text-on-surface">0</div>
+          </div>
+          <div id="alertKpiContainer" class="bg-surface-container border border-white/5 rounded-xl p-5 flex flex-col gap-2 relative overflow-hidden transition-all">
+            <div class="absolute inset-0 bg-error/5 opacity-0 transition-opacity" id="alertKpiOverlay"></div>
+            <div class="flex justify-between items-start relative z-10">
+              <span id="alertKpiLabel" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Critical Alarms</span>
+              <span id="alertKpiIcon" class="material-symbols-outlined text-on-surface-variant text-xl">warning</span>
+            </div>
+            <div id="kpiAlerts" class="text-3xl font-bold text-on-surface relative z-10">0</div>
+          </div>
+          <div class="bg-surface-container border border-white/5 rounded-xl p-5 flex flex-col gap-2">
+            <div class="flex justify-between items-start">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Last Scan</span>
+              <span class="material-symbols-outlined text-on-surface-variant text-xl">update</span>
+            </div>
+            <div id="kpiLast" class="font-mono text-sm text-on-surface mt-2">Never</div>
+            <div id="kpiNetwork" class="text-[10px] text-on-surface-variant font-mono uppercase">Unknown CIDR</div>
+          </div>
+        </div>
+
+        <!-- Main Dashboard Content -->
+        <div class="flex flex-col lg:flex-row gap-6">
+          <!-- Network Visual / Map -->
+          <div class="flex-1 bg-surface-container border border-white/5 rounded-xl overflow-hidden flex flex-col relative min-h-[450px]">
+            <div class="px-5 py-4 border-b border-white/5 flex justify-between items-center bg-white/5">
+              <span class="font-semibold text-on-surface">Network Topology</span>
+              <button id="dashboardScanBtn" class="text-xs bg-primary text-on-primary font-bold px-3 py-1.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">refresh</span>
+                Scan Network
+              </button>
+            </div>
+            <div class="flex-1 relative grid-overlay flex items-center justify-center overflow-hidden" id="scanVisual">
+               <div class="radar" id="radar">
+                  <div class="sweep"></div>
+                  <!-- Nodes injected by JS -->
+               </div>
+               <div class="absolute bottom-4 left-4 right-4 text-center">
+                  <p id="scanSummary" class="text-[11px] text-on-surface-variant font-mono bg-background/80 py-1.5 px-3 rounded-full border border-white/5 inline-block">
+                    Ready to monitor network.
+                  </p>
+               </div>
+            </div>
+          </div>
+
+          <!-- Sidebar: Recent Alerts -->
+          <div class="w-full lg:w-96 bg-surface-container border border-white/5 rounded-xl flex flex-col overflow-hidden max-h-[500px]">
+            <div class="px-5 py-4 border-b border-white/5 bg-white/5 flex justify-between items-center">
+              <span class="font-semibold text-on-surface">Recent Alerts</span>
+              <button class="text-[10px] font-bold text-primary hover:underline uppercase tracking-wider nav-tab" data-page="logs">View All</button>
+            </div>
+            <div class="flex-1 overflow-y-auto" id="recentAlerts">
+              <!-- Alerts injected by JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- IP Database Page -->
+      <section id="database" class="page space-y-6">
+        <div class="bg-surface-container border border-white/5 rounded-xl overflow-hidden">
+          <div class="px-6 py-5 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/5">
+            <div>
+              <h2 class="text-lg font-bold text-on-surface">IP Database</h2>
+              <p class="text-xs text-on-surface-variant mt-1">Manage reserved IP and MAC addresses</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button id="exportBtn" class="text-xs bg-surface-variant text-on-surface font-bold px-3 py-2 rounded-lg hover:brightness-110 transition-all active:scale-95">Export JSON</button>
+              <label class="text-xs bg-surface-variant text-on-surface font-bold px-3 py-2 rounded-lg hover:brightness-110 transition-all active:scale-95 cursor-pointer">
+                Import JSON
+                <input id="importInput" type="file" accept=".json,application/json" hidden>
+              </label>
+              <button id="addIpBtn" class="text-xs bg-primary text-on-primary font-bold px-4 py-2 rounded-lg hover:brightness-110 transition-all active:scale-95 flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">add</span>
+                New Reservation
+              </button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-white/5 border-b border-white/5">
+                  <th class="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">IP Address</th>
+                  <th class="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Name</th>
+                  <th class="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant text-center">MAC Address</th>
+                  <th class="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Owner</th>
+                  <th class="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Note</th>
+                  <th class="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="reservedBody" class="divide-y divide-white/5">
+                <!-- Data injected by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scanning Page -->
+      <section id="scanner" class="page space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-surface-container border border-white/5 rounded-xl p-6 flex flex-col gap-6">
+            <div>
+              <h2 class="text-lg font-bold text-on-surface">Scan Configuration</h2>
+              <p class="text-xs text-on-surface-variant mt-1">Manual and scheduled network discovery</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div class="flex flex-col gap-2">
+                <label for="cidr" class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Network (CIDR)</label>
+                <input id="cidr" class="bg-background border border-white/10 rounded-lg px-3 py-2.5 text-on-surface focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none font-mono text-sm" value="192.168.1.0/24">
+              </div>
+              <div class="flex flex-col gap-2">
+                <label for="scanTimeout" class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Timeout (sec)</label>
+                <input id="scanTimeout" type="number" min="1" max="10" value="2" class="bg-background border border-white/10 rounded-lg px-3 py-2.5 text-on-surface focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-sm">
+              </div>
+            </div>
+
+            <div class="flex gap-2">
+              <button id="scannerScanBtn" class="flex-1 bg-primary text-on-primary font-bold py-2.5 rounded-lg hover:brightness-110 transition-all active:scale-95 flex justify-center items-center gap-2">
+                <span class="material-symbols-outlined text-sm">radar</span>
+                Start Discovery
+              </button>
+              <button id="notifyBtn" class="px-4 border border-white/10 text-on-surface-variant hover:text-on-surface hover:bg-white/5 rounded-lg transition-all" title="Browser Alerts">
+                <span class="material-symbols-outlined">notifications</span>
+              </button>
+            </div>
+
+            <hr class="border-white/5">
+
+            <div>
+              <h3 class="text-sm font-bold text-on-surface mb-4">Background Scheduler</h3>
+              <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="flex flex-col gap-2">
+                  <label for="scheduleEvery" class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Every</label>
+                  <input id="scheduleEvery" type="number" min="5" max="3600" value="30" class="bg-background border border-white/10 rounded-lg px-3 py-2.5 text-on-surface focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-sm">
+                </div>
+                <div class="flex flex-col gap-2">
+                  <label for="scheduleUnit" class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Unit</label>
+                  <select id="scheduleUnit" class="bg-background border border-white/10 rounded-lg px-3 py-2.5 text-on-surface focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-sm">
+                    <option value="seconds">Seconds</option>
+                    <option value="minutes">Minutes</option>
+                  </select>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <button id="startScheduleBtn" class="bg-secondary-container text-on-secondary-container font-bold px-4 py-2 rounded-lg hover:brightness-110 active:scale-95 transition-all text-xs">Enable Schedule</button>
+                <button id="stopScheduleBtn" class="bg-error-container text-on-error-container font-bold px-4 py-2 rounded-lg hover:brightness-110 active:scale-95 transition-all text-xs">Disable</button>
+                <span id="scheduleStatus" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant bg-white/5 px-3 py-2 rounded-lg">Inactive</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-surface-container border border-white/5 rounded-xl overflow-hidden flex flex-col">
+            <div class="px-6 py-5 border-b border-white/5 bg-white/5 flex justify-between items-center">
+              <h2 class="text-lg font-bold text-on-surface">Discovery Results</h2>
+              <span class="text-[10px] font-mono text-on-surface-variant uppercase tracking-widest" id="lastScanMeta">No scan run</span>
+            </div>
+            <div class="flex-1 overflow-y-auto">
+              <table class="w-full text-left border-collapse">
+                <tbody id="scanResultBody" class="divide-y divide-white/5">
+                  <!-- Data injected by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Logs & Alerts Page -->
+      <section id="logs" class="page space-y-6">
+        <div class="bg-surface-container border border-white/5 rounded-xl overflow-hidden flex flex-col max-h-[calc(100vh-180px)]">
+          <div class="px-6 py-5 border-b border-white/5 flex justify-between items-center bg-white/5 sticky top-0 z-10">
+            <div>
+              <h2 class="text-lg font-bold text-on-surface">System Logs & Events</h2>
+              <p class="text-xs text-on-surface-variant mt-1">Audit trail for all network activities</p>
+            </div>
+            <button id="clearLogsBtn" class="text-xs bg-error/10 text-error border border-error/20 font-bold px-4 py-2 rounded-lg hover:bg-error/20 transition-all active:scale-95">Clear History</button>
+          </div>
+          <div class="overflow-y-auto flex-1 font-mono text-xs" id="logView">
+            <!-- Logs injected by JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Architecture Page -->
+      <section id="architecture" class="page space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-surface-container border border-white/5 rounded-xl p-6 flex flex-col gap-6">
+            <div>
+              <h2 class="text-lg font-bold text-on-surface">System Architecture</h2>
+              <p class="text-xs text-on-surface-variant mt-1">High-level technology stack and flow</p>
+            </div>
+
+            <div class="bg-background border border-white/5 p-4 rounded-xl text-on-surface-variant text-sm leading-relaxed italic border-l-4 border-l-primary">
+              "The production environment utilizes a distributed discovery model where the Raspberry Pi performs Layer-2 ARP interrogation while maintaining a persistent security state in a local SQLite enclave."
+            </div>
+
+            <div class="flex flex-col gap-4">
+              <div class="flex items-center gap-4">
+                <div class="w-24 shrink-0 p-3 bg-surface-container-high border border-white/5 rounded-xl text-center text-[10px] font-bold">Browser UI</div>
+                <div class="flex-1 h-px bg-primary/30 relative"><span class="absolute right-0 -top-1 material-symbols-outlined text-primary text-xs">arrow_forward_ios</span></div>
+                <div class="w-24 shrink-0 p-3 bg-surface-container-high border border-white/5 rounded-xl text-center text-[10px] font-bold">Flask API</div>
+                <div class="flex-1 h-px bg-primary/30 relative"><span class="absolute right-0 -top-1 material-symbols-outlined text-primary text-xs">arrow_forward_ios</span></div>
+                <div class="w-24 shrink-0 p-3 bg-primary/20 border border-primary/30 rounded-xl text-center text-[10px] font-bold text-primary">SCAPY / DB</div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <span class="px-2.5 py-1 bg-surface-variant text-on-surface-variant rounded-full text-[10px] font-bold tracking-wider uppercase">Layer 2 ARP</span>
+              <span class="px-2.5 py-1 bg-surface-variant text-on-surface-variant rounded-full text-[10px] font-bold tracking-wider uppercase">SQLite 3</span>
+              <span class="px-2.5 py-1 bg-surface-variant text-on-surface-variant rounded-full text-[10px] font-bold tracking-wider uppercase">Raspberry Pi</span>
+              <span class="px-2.5 py-1 bg-surface-variant text-on-surface-variant rounded-full text-[10px] font-bold tracking-wider uppercase">Basic Auth</span>
+            </div>
+          </div>
+
+          <div class="bg-surface-container border border-white/5 rounded-xl p-6 flex flex-col gap-6">
+            <div>
+              <h2 class="text-lg font-bold text-on-surface">Security Framework</h2>
+              <p class="text-xs text-on-surface-variant mt-1">Compliance and hardening measures</p>
+            </div>
+
+            <div class="space-y-4">
+              <div class="flex gap-4 p-3 hover:bg-white/5 rounded-xl transition-colors group">
+                <span class="material-symbols-outlined text-secondary group-hover:scale-110 transition-transform">verified_user</span>
+                <div>
+                  <h4 class="text-sm font-bold text-on-surface">SQL Injection Prevention</h4>
+                  <p class="text-xs text-on-surface-variant mt-0.5">Strict use of parameterized queries across all database interactions.</p>
+                </div>
+              </div>
+              <div class="flex gap-4 p-3 hover:bg-white/5 rounded-xl transition-colors group">
+                <span class="material-symbols-outlined text-secondary group-hover:scale-110 transition-transform">verified_user</span>
+                <div>
+                  <h4 class="text-sm font-bold text-on-surface">XSS Mitigation</h4>
+                  <p class="text-xs text-on-surface-variant mt-0.5">Output encoding and Content Security Policy (CSP) enforcement.</p>
+                </div>
+              </div>
+              <div class="flex gap-4 p-3 hover:bg-white/5 rounded-xl transition-colors group">
+                <span class="material-symbols-outlined text-secondary group-hover:scale-110 transition-transform">verified_user</span>
+                <div>
+                  <h4 class="text-sm font-bold text-on-surface">Least Privilege Principle</h4>
+                  <p class="text-xs text-on-surface-variant mt-0.5">Scapy isolation for raw socket access; web service runs with restricted permissions.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-surface-container border border-white/5 rounded-xl overflow-hidden">
+            <div class="px-6 py-4 bg-white/5 border-b border-white/5 flex justify-between items-center">
+              <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Discovery Logic (Python/Scapy)</span>
+              <span class="material-symbols-outlined text-on-surface-variant text-sm">code</span>
+            </div>
+            <pre class="p-6 text-[11px] leading-relaxed overflow-x-auto text-primary font-mono bg-background/50">
+def scan_network(cidr):
+    packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=cidr)
+    answered = srp(packet, timeout=2, verbose=False)[0]
+
+    found = []
+    for _sent, received in answered:
+        found.append({
+            "ip": received.psrc,
+            "mac": received.hwsrc.upper()
+        })
+    return found</pre>
+          </div>
+          <div class="bg-surface-container border border-white/5 rounded-xl overflow-hidden">
+            <div class="px-6 py-4 bg-white/5 border-b border-white/5 flex justify-between items-center">
+              <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Database Integrity (SQL)</span>
+              <span class="material-symbols-outlined text-on-surface-variant text-sm">terminal</span>
+            </div>
+            <pre class="p-6 text-[11px] leading-relaxed overflow-x-auto text-tertiary font-mono bg-background/50">
+INSERT INTO reservations
+    (ip, name, mac, owner, note)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(ip) DO UPDATE SET
+    name = excluded.name,
+    mac = excluded.mac,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- Secure parameterized execution --</pre>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="px-6 py-4 border-t border-white/5 text-[10px] text-on-surface-variant flex justify-between items-center">
+      <span>IP Sentinel Security Dashboard • v1.2.0</span>
+      <span class="font-mono">Raspberry Pi Foundation Concept</span>
+    </footer>
+  </main>
+
+  <!-- Reservation Modal -->
+  <div id="modalBack" class="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] flex items-center justify-center p-6 hidden">
+    <div class="bg-surface-container border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
+      <div class="px-6 py-5 border-b border-white/5 flex justify-between items-center bg-white/5">
+        <h2 id="modalTitle" class="font-bold text-on-surface text-lg">New IP Reservation</h2>
+        <button id="closeModalBtn" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <form id="reservationForm" class="p-6 space-y-5">
+        <input type="hidden" id="editOriginalIp">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="flex flex-col gap-2">
+            <label for="ipInput" class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">IP Address *</label>
+            <input id="ipInput" required placeholder="192.168.1.10" class="bg-background border border-white/10 rounded-lg px-3 py-2 text-on-surface focus:ring-2 focus:ring-primary/20 outline-none font-mono text-sm">
+          </div>
+          <div class="flex flex-col gap-2">
+            <label for="nameInput" class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Device Name *</label>
+            <input id="nameInput" required placeholder="Printer-01" maxlength="60" class="bg-background border border-white/10 rounded-lg px-3 py-2 text-on-surface focus:ring-2 focus:ring-primary/20 outline-none text-sm">
+          </div>
+          <div class="flex flex-col gap-2">
+            <label for="macInput" class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">MAC Address</label>
+            <input id="macInput" placeholder="AA:BB:CC:DD:EE:FF" class="bg-background border border-white/10 rounded-lg px-3 py-2 text-on-surface focus:ring-2 focus:ring-primary/20 outline-none font-mono text-sm">
+          </div>
+          <div class="flex flex-col gap-2">
+            <label for="ownerInput" class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Assigned To</label>
+            <input id="ownerInput" placeholder="IT / Department" maxlength="60" class="bg-background border border-white/10 rounded-lg px-3 py-2 text-on-surface focus:ring-2 focus:ring-primary/20 outline-none text-sm">
+          </div>
+        </div>
+        <div class="flex flex-col gap-2">
+          <label for="noteInput" class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Note</label>
+          <textarea id="noteInput" rows="3" placeholder="Additional details..." maxlength="200" class="bg-background border border-white/10 rounded-lg px-3 py-2 text-on-surface focus:ring-2 focus:ring-primary/20 outline-none text-sm resize-none"></textarea>
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="button" id="cancelModalBtn" class="flex-1 bg-surface-variant text-on-surface font-bold py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all">Cancel</button>
+          <button type="submit" class="flex-1 bg-primary text-on-primary font-bold py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all">Save Reservation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toastWrap" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-3"></div>
+
+  <script>
+    "use strict";
+
+    /* ---------- State ---------- */
+    let reservations = [];
+    let logs = [];
+    let lastScan = [];
+    let currentScanMeta = null;
+
+    /* ---------- Helpers ---------- */
+    function validIPv4(ip){
+      const parts = ip.trim().split(".");
+      return parts.length === 4 && parts.every(p => /^\d{1,3}$/.test(p) && Number(p) >= 0 && Number(p) <= 255);
+    }
+    function validCIDR(cidr){
+      const [ip, prefix] = cidr.trim().split("/");
+      return validIPv4(ip) && /^\d{1,2}$/.test(prefix || "") && Number(prefix) >= 8 && Number(prefix) <= 32;
+    }
+    function normalizeMac(mac){
+      if(!mac) return "";
+      return mac.trim().replace(/-/g, ":").toUpperCase();
+    }
+    function toast(message, type="good"){
+      const el = document.createElement("div");
+      const isError = type === "bad";
+      el.className = `toast min-w-[300px] p-4 rounded-xl border flex items-center gap-3 shadow-2xl ${isError ? 'bg-error-container/20 border-error/30 text-error' : 'bg-surface-container-high border-white/10 text-primary'}`;
+      el.innerHTML = `
+        <span class="material-symbols-outlined text-lg">${isError ? 'error' : 'check_circle'}</span>
+        <span class="font-semibold">${message}</span>
+      `;
+      document.getElementById("toastWrap").appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(20px)';
+        el.style.transition = 'all 0.3s ease';
+        setTimeout(() => el.remove(), 300);
+      }, 3500);
+    }
+    function alarm(message){
+      toast(message, "bad");
+      if("Notification" in window && Notification.permission === "granted"){
+        new Notification("IP Sentinel Alarm", {body:message});
+      }
+    }
+
+    async function apiFetch(url, method="GET", body=null) {
+      const opts = { method, headers: {} };
+      if (body) {
+        opts.headers["Content-Type"] = "application/json";
+        opts.body = JSON.stringify(body);
+      }
+      const res = await fetch(url, opts);
+      if (!res.ok) {
+        const err = await res.json().catch(()=>({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      return res.json();
+    }
+
+    async function loadData() {
+      try {
+        reservations = await apiFetch("/api/reservations");
+        const latest = await apiFetch("/api/scans/latest");
+        if (latest) {
+          lastScan = latest.devices || [];
+          currentScanMeta = latest;
+        }
+        logs = await apiFetch("/api/logs");
+        const sched = await apiFetch("/api/schedule");
+
+        const schedStatusEl = document.getElementById("scheduleStatus");
+        if (sched.active) {
+          schedStatusEl.textContent = `Active (${sched.interval_seconds}s)`;
+          schedStatusEl.classList.remove("text-on-surface-variant");
+          schedStatusEl.classList.add("text-secondary");
+        } else {
+          schedStatusEl.textContent = "Inactive";
+          schedStatusEl.classList.add("text-on-surface-variant");
+          schedStatusEl.classList.remove("text-secondary");
+        }
+
+        renderAll();
+      } catch(err) {
+        console.error("Data load failed:", err);
+      }
+    }
+
+    /* ---------- Navigation ---------- */
+    const navButtons = document.querySelectorAll(".nav-tab");
+    const pages = document.querySelectorAll(".page");
+
+    function switchPage(pageId) {
+      navButtons.forEach(btn => {
+        if (btn.dataset.page === pageId) {
+          btn.classList.add("bg-surface-bright/10", "border-r-2", "border-primary", "text-primary");
+          btn.classList.remove("text-on-surface-variant");
+        } else {
+          btn.classList.remove("bg-surface-bright/10", "border-r-2", "border-primary", "text-primary");
+          btn.classList.add("text-on-surface-variant");
+        }
+      });
+      pages.forEach(p => p.classList.toggle("active", p.id === pageId));
+    }
+
+    navButtons.forEach(btn => {
+      btn.addEventListener("click", () => switchPage(btn.dataset.page));
+    });
+
+    /* ---------- Reservations ---------- */
+    function renderReservations(){
+      const body = document.getElementById("reservedBody");
+      body.innerHTML = "";
+      if(reservations.length === 0){
+        body.innerHTML = `<tr><td colspan="6" class="px-6 py-12 text-center text-on-surface-variant italic">No reservations found in database.</td></tr>`;
+      } else {
+        [...reservations].sort((a,b)=>ipToInt(a.ip)-ipToInt(b.ip)).forEach(r => {
+          const tr = document.createElement("tr");
+          tr.className = "hover:bg-white/5 transition-colors group";
+          tr.innerHTML = `
+            <td class="px-6 py-4 font-mono text-primary font-semibold">${r.ip}</td>
+            <td class="px-6 py-4 text-on-surface">${r.name}</td>
+            <td class="px-6 py-4 font-mono text-xs text-on-surface-variant text-center">${r.mac || '—'}</td>
+            <td class="px-6 py-4 text-on-surface-variant">${r.owner || '—'}</td>
+            <td class="px-6 py-4 text-on-surface-variant max-w-[200px] truncate">${r.note || '—'}</td>
+            <td class="px-6 py-4 text-right space-x-2">
+              <button class="edit-btn text-primary hover:text-white transition-colors" data-ip="${r.ip}">
+                <span class="material-symbols-outlined text-lg">edit</span>
+              </button>
+              <button class="delete-btn text-error/60 hover:text-error transition-colors" data-ip="${r.ip}">
+                <span class="material-symbols-outlined text-lg">delete</span>
+              </button>
+            </td>
+          `;
+
+          tr.querySelector('.edit-btn').onclick = () => openModal(r);
+          tr.querySelector('.delete-btn').onclick = async () => {
+            if(!confirm(`Delete reservation for ${r.ip}?`)) return;
+            try {
+              await apiFetch("/api/reservations/" + encodeURIComponent(r.ip), "DELETE");
+              toast("Reservation removed.");
+              loadData();
+            } catch(err) {
+              toast(err.message, "bad");
+            }
+          };
+
+          body.appendChild(tr);
+        });
+      }
+    }
+
+    function ipToInt(ip){
+      return ip.split(".").reduce((acc,p)=>(acc*256)+Number(p),0);
+    }
+
+    function openModal(existing=null){
+      document.getElementById("modalTitle").textContent = existing ? "Edit IP Reservation" : "New IP Reservation";
+      document.getElementById("editOriginalIp").value = existing?.ip || "";
+      document.getElementById("ipInput").value = existing?.ip || "";
+      document.getElementById("nameInput").value = existing?.name || "";
+      document.getElementById("macInput").value = existing?.mac || "";
+      document.getElementById("ownerInput").value = existing?.owner || "";
+      document.getElementById("noteInput").value = existing?.note || "";
+      document.getElementById("modalBack").classList.remove("hidden");
+      setTimeout(()=>document.getElementById("ipInput").focus(), 100);
+    }
+
+    function closeModal(){
+      document.getElementById("modalBack").classList.add("hidden");
+      document.getElementById("reservationForm").reset();
+    }
+
+    document.getElementById("addIpBtn").onclick = () => openModal();
+    document.getElementById("closeModalBtn").onclick = closeModal;
+    document.getElementById("cancelModalBtn").onclick = closeModal;
+    document.getElementById("modalBack").onclick = (e) => { if(e.target.id === "modalBack") closeModal(); };
+
+    document.getElementById("reservationForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const payload = {
+        original_ip: document.getElementById("editOriginalIp").value || null,
+        ip: document.getElementById("ipInput").value.trim(),
+        name: document.getElementById("nameInput").value.trim(),
+        mac: document.getElementById("macInput").value,
+        owner: document.getElementById("ownerInput").value.trim(),
+        note: document.getElementById("noteInput").value.trim()
+      };
+      try {
+        await apiFetch("/api/reservations", "POST", payload);
+        toast("Reservation saved.");
+        closeModal();
+        loadData();
+      } catch(err) {
+        toast(err.message, "bad");
+      }
+    };
+
+    /* ---------- Import/Export ---------- */
+    document.getElementById("exportBtn").onclick = () => {
+      const blob = new Blob([JSON.stringify({app:"IP Sentinel", reservations}, null, 2)], {type:"application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "ip-sentinel-export.json"; a.click();
+      URL.revokeObjectURL(url);
+      toast("Reservations exported.");
+    };
+
+    document.getElementById("importInput").onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if(!file) return;
+      try {
+        const parsed = JSON.parse(await file.text());
+        const arr = Array.isArray(parsed) ? parsed : parsed.reservations;
+        if(!Array.isArray(arr)) throw new Error("Invalid format");
+        await apiFetch("/api/reservations/import", "POST", arr);
+        toast("Import successful.");
+        loadData();
+      } catch(err) {
+        toast("Import failed: " + err.message, "bad");
+      } finally { e.target.value = ""; }
+    };
+
+    /* ---------- Scanner ---------- */
+    function renderScan(){
+      const body = document.getElementById("scanResultBody");
+      body.innerHTML = "";
+      const metaEl = document.getElementById("lastScanMeta");
+      
+      if(lastScan.length === 0){
+        body.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-on-surface-variant italic">No discovery data available.</td></tr>`;
+        metaEl.textContent = "No scan run";
+      } else {
+        if(currentScanMeta) metaEl.textContent = `Last: ${currentScanMeta.cidr} @ ${new Date(currentScanMeta.finished_at).toLocaleTimeString()}`;
+        lastScan.forEach(d => {
+          const tr = document.createElement("tr");
+          tr.className = "hover:bg-white/5 transition-colors group border-b border-white/5 last:border-0";
+
+          let icon = "shield";
+          let iconColor = "";
+          let labelColor = "";
+
+          if (d.status === 'good') {
+            icon = "verified_user";
+            iconColor = "text-secondary";
+            labelColor = "text-secondary";
+          } else if (d.status === 'warn') {
+            icon = "warning";
+            iconColor = "text-tertiary";
+            labelColor = "text-tertiary";
+          } else {
+            icon = "gpp_bad";
+            iconColor = "text-error";
+            labelColor = "text-error";
+          }
+
+          tr.innerHTML = `
+            <td class="px-6 py-5" colspan="4">
+              <div class="flex items-start gap-4">
+                <div class="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center shrink-0 border border-white/5">
+                  <span class="material-symbols-outlined text-2xl ${iconColor}" style="font-variation-settings: 'FILL' 1">${icon}</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex justify-between items-start">
+                    <div>
+                      <div class="font-mono text-base font-bold text-on-surface">${d.ip}</div>
+                      <div class="font-mono text-xs text-on-surface-variant mt-0.5">${d.mac}</div>
+                    </div>
+                    <div class="text-right">
+                      <div class="text-xs font-bold text-on-surface truncate">${d.name || 'Unknown Device'}</div>
+                      <div class="text-[10px] font-black uppercase tracking-widest ${labelColor} mt-1">${d.label}</div>
+                    </div>
+                  </div>
+                  ${d.reason ? `<div class="mt-2 text-[10px] text-on-surface-variant bg-background/50 px-2 py-1.5 rounded border border-white/5 font-mono italic">${d.reason}</div>` : ''}
+                </div>
+              </div>
+            </td>
+          `;
+          body.appendChild(tr);
+        });
+      }
+    }
+
+    function renderRadar(){
+      const radar = document.getElementById("radar");
+      radar.querySelectorAll(".node, .node-label").forEach(n => n.remove());
+
+      lastScan.forEach((d, i) => {
+        const n = document.createElement("div");
+        const color = d.status === 'good' ? '#4edea3' : d.status === 'warn' ? '#ffb95f' : '#ffb4ab';
+        n.className = "node";
+        n.style.color = color;
+        n.style.backgroundColor = color;
+
+        const angle = (i * 137.5) % 360;
+        const radius = 25 + ((i * 35) % 75);
+        const x = 110 + Math.cos(angle * Math.PI / 180) * radius - 5;
+        const y = 110 + Math.sin(angle * Math.PI / 180) * radius - 5;
+
+        n.style.left = x + "px";
+        n.style.top = y + "px";
+
+        const label = document.createElement("div");
+        label.className = "node-label";
+        label.textContent = d.ip;
+        label.style.left = (x + 5) + "px";
+        label.style.top = (y + 5) + "px";
+
+        radar.appendChild(n);
+        radar.appendChild(label);
+      });
+    }
+
+    async function runScan(){
+      const scanBtns = [
+        document.getElementById("dashboardScanBtn"),
+        document.getElementById("scannerScanBtn"),
+        document.getElementById("quickScanBtn")
+      ];
+
+      const cidr = document.getElementById("cidr").value.trim();
+      const timeout = Number(document.getElementById("scanTimeout").value) || 2;
+      if(!validCIDR(cidr)) { toast("Invalid CIDR format", "bad"); return; }
+
+      // Running state
+      scanBtns.forEach(btn => { if(btn) { btn.disabled = true; btn.style.opacity = "0.5"; } });
+      document.getElementById("scanVisual").classList.add("scanning");
+      document.getElementById("scanSummary").textContent = `ARP Discovery in progress on ${cidr}...`;
+      document.getElementById("scanSummary").classList.add("animate-pulse");
+
+      try {
+        const res = await apiFetch("/api/scan", "POST", {cidr, timeout});
+        toast("Network discovery complete.");
+        await loadData();
+
+        const issues = res.devices.filter(d => d.status !== 'good');
+        document.getElementById("scanSummary").textContent = `Discovery complete: ${res.active_count} active, ${issues.length} unauthorized/warning.`;
+        issues.forEach(x => alarm(x.reason));
+      } catch(err) {
+        toast("Scan failed: " + err.message, "bad");
+        document.getElementById("scanSummary").textContent = "Security scan interrupted.";
+      } finally {
+        scanBtns.forEach(btn => { if(btn) { btn.disabled = false; btn.style.opacity = "1"; } });
+        document.getElementById("scanVisual").classList.remove("scanning");
+        document.getElementById("scanSummary").classList.remove("animate-pulse");
+      }
+    }
+
+    document.getElementById("dashboardScanBtn").onclick = runScan;
+    document.getElementById("scannerScanBtn").onclick = runScan;
+    document.getElementById("quickScanBtn").onclick = runScan;
+
+    /* ---------- Scheduling ---------- */
+    document.getElementById("startScheduleBtn").onclick = async () => {
+      const amount = Number(document.getElementById("scheduleEvery").value);
+      const unit = document.getElementById("scheduleUnit").value;
+      const cidr = document.getElementById("cidr").value.trim();
+      const timeout = Number(document.getElementById("scanTimeout").value) || 2;
+      try {
+        await apiFetch("/api/schedule", "POST", {amount, unit, cidr, timeout});
+        toast("Background scheduler enabled.");
+        loadData();
+      } catch(err) { toast(err.message, "bad"); }
+    };
+
+    document.getElementById("stopScheduleBtn").onclick = async () => {
+      try {
+        await apiFetch("/api/schedule", "DELETE");
+        toast("Scheduler disabled.");
+        loadData();
+      } catch(err) { toast(err.message, "bad"); }
+    };
+
+    /* ---------- Logs ---------- */
+    function renderLogs(){
+      const view = document.getElementById("logView");
+      view.innerHTML = "";
+      if(logs.length === 0){
+        view.innerHTML = `<div class="p-12 text-center text-on-surface-variant italic">System event log is empty.</div>`;
+        return;
+      }
+      logs.forEach(l => {
+        const row = document.createElement("div");
+        row.className = "flex gap-6 px-6 py-2.5 border-b border-white/5 hover:bg-white/5 transition-colors";
+
+        const severityColors = l.level === 'ALARM' ? 'text-error' : l.level === 'WARNING' ? 'text-tertiary' : (l.level === 'OK' || l.level === 'TRUSTED') ? 'text-secondary' : 'text-primary';
+
+        row.innerHTML = `
+          <div class="w-40 shrink-0 text-on-surface-variant">${l.time}</div>
+          <div class="w-20 shrink-0 font-bold ${severityColors}">${l.level}</div>
+          <div class="flex-1 text-on-surface">${l.message}</div>
+        `;
+        view.appendChild(row);
+      });
+    }
+
+    document.getElementById("clearLogsBtn").onclick = async () => {
+      if(!confirm("Clear all system logs?")) return;
+      try {
+        await apiFetch("/api/logs", "DELETE");
+        toast("Log history cleared.");
+        loadData();
+      } catch(err) { toast(err.message, "bad"); }
+    };
+
+    /* ---------- Dashboard ---------- */
+    function renderDashboard(){
+      const issuesCount = lastScan.filter(c => c.status !== "good").length;
+      document.getElementById("kpiReserved").textContent = reservations.length;
+      document.getElementById("kpiActive").textContent = lastScan.length;
+      document.getElementById("kpiAlerts").textContent = issuesCount;
+      
+      const alertKpiContainer = document.getElementById("alertKpiContainer");
+      const alertKpiLabel = document.getElementById("alertKpiLabel");
+      const alertKpiIcon = document.getElementById("alertKpiIcon");
+      const alertKpiOverlay = document.getElementById("alertKpiOverlay");
+
+      if (issuesCount > 0) {
+        alertKpiContainer.classList.add("border-error");
+        alertKpiLabel.classList.add("text-error");
+        alertKpiIcon.classList.add("text-error");
+        alertKpiOverlay.classList.remove("opacity-0");
+        alertKpiOverlay.classList.add("opacity-100");
+
+        const navBadge = document.getElementById("navAlertBadge");
+        navBadge.textContent = issuesCount;
+        navBadge.classList.remove("hidden");
+      } else {
+        alertKpiContainer.classList.remove("border-error");
+        alertKpiLabel.classList.remove("text-error");
+        alertKpiIcon.classList.remove("text-error");
+        alertKpiOverlay.classList.add("opacity-0");
+        alertKpiOverlay.classList.remove("opacity-100");
+        document.getElementById("navAlertBadge").classList.add("hidden");
+      }
+
+      if (currentScanMeta) {
+        document.getElementById("kpiLast").textContent = new Date(currentScanMeta.finished_at).toLocaleTimeString();
+        document.getElementById("kpiNetwork").textContent = currentScanMeta.cidr;
+      }
+
+      const alertBox = document.getElementById("recentAlerts");
+      alertBox.innerHTML = "";
+
+      const recentLogs = logs.filter(l => l.level === 'ALARM' || l.level === 'WARNING' || l.level === 'TRUSTED');
+
+      // Deduplicate: Group by Level + Message
+      const groupedAlerts = [];
+      const alertMap = new Map();
+
+      recentLogs.forEach(l => {
+        const key = `${l.level}|${l.message}`;
+        if (alertMap.has(key)) {
+          alertMap.get(key).count++;
+          // Keep the most recent timestamp
+          if (new Date(l.time) > new Date(alertMap.get(key).time)) {
+            alertMap.get(key).time = l.time;
+          }
+        } else {
+          const alertObj = { ...l, count: 1 };
+          alertMap.set(key, alertObj);
+          groupedAlerts.push(alertObj);
+        }
+      });
+
+      // Sort by latest time
+      groupedAlerts.sort((a, b) => new Date(b.time) - new Date(a.time));
+      const displayAlerts = groupedAlerts.slice(0, 15);
+
+      if(displayAlerts.length === 0){
+        alertBox.innerHTML = `<div class="p-8 text-center text-on-surface-variant italic text-xs">No recent network activity events.</div>`;
+      } else {
+        displayAlerts.forEach(l => {
+          const item = document.createElement("div");
+          const isAlarm = l.level === 'ALARM';
+          const isWarning = l.level === 'WARNING';
+          const isTrusted = l.level === 'TRUSTED';
+
+          // Try to highlight IP and add count
+          let message = l.message;
+          const countStr = l.count > 1 ? ` <b class="text-white">(${l.count})</b>` : "";
+
+          // Basic IP extraction for styling if found
+          const ipMatch = message.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
+          if (ipMatch) {
+            const ip = ipMatch[0];
+            message = message.replace(ip, `<span class="font-mono font-bold text-on-surface">${ip}${countStr}</span>`);
+          } else if (l.count > 1) {
+            message += countStr;
+          }
+
+          item.className = `p-4 border-b border-white/5 hover:bg-surface-bright/20 transition-colors border-l-4 ${isAlarm ? 'border-l-error bg-error/5' : isWarning ? 'border-l-tertiary bg-tertiary/5' : isTrusted ? 'border-l-secondary bg-secondary/5' : 'border-l-primary bg-primary/5'}`;
+          item.innerHTML = `
+            <div class="flex justify-between items-start mb-1">
+              <span class="text-[10px] font-bold uppercase tracking-widest ${isAlarm ? 'text-error' : isWarning ? 'text-tertiary' : isTrusted ? 'text-secondary' : 'text-primary'}">
+                ${isAlarm ? 'Unauthorized' : isWarning ? 'MAC Mismatch' : isTrusted ? 'Trusted Device' : 'System Event'}
+              </span>
+              <span class="text-[10px] font-mono text-on-surface-variant">${l.time.split(' ')[1]}</span>
+            </div>
+            <div class="text-xs text-on-surface-variant leading-snug">${message}</div>
+          `;
+          alertBox.appendChild(item);
+        });
+      }
+    }
+
+    function renderAll(){
+      renderReservations(); renderScan(); renderRadar(); renderLogs(); renderDashboard();
+    }
+
+    // Initial load & Polling
+    loadData();
+    setInterval(loadData, 5000);
+
+    // Notifications
+    document.getElementById("notifyBtn").onclick = async () => {
+      if(!("Notification" in window)) return;
+      const permission = await Notification.requestPermission();
+      toast(permission === "granted" ? "Notifications enabled" : "Notifications denied");
+    };
+
+    // Mobile Menu
+    document.getElementById("mobileMenuBtn").onclick = () => {
+      const sidebar = document.querySelector('nav');
+      sidebar.classList.toggle('hidden');
+      sidebar.classList.toggle('flex');
+      sidebar.classList.add('w-full', 'inset-0');
+    };
+  </script>
+</body>
+</html>

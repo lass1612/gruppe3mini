@@ -92,10 +92,14 @@ def security_headers(response):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
-    # This project intentionally uses one inline script/style block in the supplied HTML.
+    # Allow external assets for the new UI redesign (Tailwind, Fonts)
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; style-src 'self' 'unsafe-inline'; "
-        "script-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+        "default-src 'self'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data:; "
+        "connect-src 'self'"
     )
     return response
 
@@ -112,7 +116,6 @@ def health():
     return jsonify(
         {
             "ok": True,
-            "scan_mode": os.getenv("IP_SENTINEL_SCAN_MODE", "real"),
             "database": str(DB_PATH),
             "default_cidr": DEFAULT_CIDR,
         }
@@ -174,20 +177,6 @@ def import_reservations():
         return jsonify({"error": str(exc)}), 400
 
 
-@app.post("/api/demo-data")
-@require_auth
-def demo_data():
-    data = [
-        {"ip": "192.168.2.10", "name": "Gateway", "mac": "02:42:AC:11:00:01", "owner": "Netværk", "note": "Router / gateway"},
-        {"ip": "192.168.2.20", "name": "Kontor-PC", "mac": "A4:5E:60:8B:11:20", "owner": "Administration", "note": "Fast arbejdsstation"},
-        {"ip": "192.168.2.30", "name": "Printer-01", "mac": "70:85:C2:19:6F:30", "owner": "Kontor", "note": "Netværksprinter"},
-        {"ip": "192.168.2.40", "name": "Raspberry-Pi", "mac": "B8:27:EB:7A:14:40", "owner": "IP Sentinel", "note": "Scanner og webserver"},
-    ]
-    db.replace_reservations(data)
-    db.add_log("INFO", "Demo-database indlæst.")
-    return jsonify(data)
-
-
 def classify_devices(found: list[dict], reservations: list[dict]) -> list[dict]:
     known = {item["ip"]: item for item in reservations}
     result = []
@@ -200,10 +189,10 @@ def classify_devices(found: list[dict], reservations: list[dict]) -> list[dict]:
                 {
                     "ip": ip,
                     "mac": mac,
-                    "name": "Ukendt enhed",
+                    "name": "Unknown Device",
                     "status": "bad",
-                    "label": "UKENDT IP",
-                    "reason": f"Ukendt aktiv IP: {ip} ({mac})",
+                    "label": "Unauthorized",
+                    "reason": f"Unknown active IP: {ip} ({mac})",
                 }
             )
             continue
@@ -216,8 +205,8 @@ def classify_devices(found: list[dict], reservations: list[dict]) -> list[dict]:
                     "mac": mac,
                     "name": reservation["name"],
                     "status": "warn",
-                    "label": "MAC-MISMATCH",
-                    "reason": f"MAC-uoverensstemmelse på {ip}: forventet {expected_mac}, fundet {mac}",
+                    "label": "MAC Mismatch",
+                    "reason": f"MAC mismatch on {ip}: expected {expected_mac}, found {mac}",
                 }
             )
             continue
@@ -228,7 +217,7 @@ def classify_devices(found: list[dict], reservations: list[dict]) -> list[dict]:
                 "mac": mac,
                 "name": reservation["name"],
                 "status": "good",
-                "label": "GODKENDT",
+                "label": "Trusted",
                 "reason": "",
             }
         )
@@ -260,12 +249,16 @@ def perform_scan(cidr: str, timeout: float, *, source: str = "manuel") -> dict:
             devices=devices,
         )
         issue_count = sum(1 for d in devices if d["status"] != "good")
-        db.add_log("OK", f"Scanning færdig: {len(devices)} aktive enheder, {issue_count} uoverensstemmelser.")
+        db.add_log("OK", f"Discovery finished: {len(devices)} active devices, {issue_count} issues.")
+
+        for device in devices:
+            if device["status"] == "good":
+                db.add_log("TRUSTED", f"Trusted device active: {device['ip']} ({device['name']})")
+            else:
+                level = "ALARM" if device["status"] == "bad" else "WARNING"
+                db.add_log(level, device["reason"])
 
         issues = [d for d in devices if d["status"] != "good"]
-        for issue in issues:
-            db.add_log("ALARM", issue["reason"])
-
         if issues:
             body = "IP Sentinel fandt følgende uoverensstemmelser:\n\n" + "\n".join(
                 f"- {item['reason']}" for item in issues

@@ -25,39 +25,6 @@ def validate_cidr(cidr: str) -> str:
     return str(network)
 
 
-def _demo_scan(cidr: str, known: list[dict] | None = None) -> list[dict]:
-    """Development fallback. Enable with IP_SENTINEL_SCAN_MODE=demo."""
-    network = ipaddress.ip_network(validate_cidr(cidr), strict=False)
-    devices: list[dict] = []
-    for item in known or []:
-        try:
-            if ipaddress.ip_address(item["ip"]) in network and random.random() > 0.15:
-                devices.append(
-                    {
-                        "ip": item["ip"],
-                        "mac": (item.get("mac") or _random_mac()).upper(),
-                    }
-                )
-        except (ValueError, KeyError):
-            continue
-
-    hosts = list(network.hosts())
-    if hosts:
-        for candidate in hosts[-min(30, len(hosts)):]:
-            ip = str(candidate)
-            if not any(x["ip"] == ip for x in devices) and not any(
-                x.get("ip") == ip for x in (known or [])
-            ):
-                devices.append({"ip": ip, "mac": _random_mac()})
-                break
-    return sorted(devices, key=lambda d: ipaddress.ip_address(d["ip"]))
-
-
-def _random_mac() -> str:
-    values = [0x02, random.randrange(256), random.randrange(256), random.randrange(256), random.randrange(256), random.randrange(256)]
-    return ":".join(f"{v:02X}" for v in values)
-
-
 def scan_network(
     cidr: str,
     *,
@@ -73,9 +40,6 @@ def scan_network(
     """
     cidr = validate_cidr(cidr)
     timeout = max(0.25, min(float(timeout), 10.0))
-
-    if os.getenv("IP_SENTINEL_SCAN_MODE", "real").lower() == "demo":
-        return _demo_scan(cidr, known)
 
     try:
         from scapy.all import ARP, Ether, srp
